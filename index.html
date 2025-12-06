@@ -3,29 +3,45 @@
 
 <head>
     <meta charset="utf-8" />
-    <title>Supabase GitHub OAuth (static)</title>
+    <title>Sign up / Sign in</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <style>
+        body {
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+            padding: 20px;
+            max-width: 820px;
+        }
+
+        button {
+            padding: 8px 12px;
+            margin: 6px 0;
+        }
+
+        #user-ui {
+            display: none;
+            margin-top: 12px;
+        }
+    </style>
 </head>
 
 <body>
-    <h1>Sign in with GitHub (Supabase)</h1>
+    <h1>Sign up / Sign in</h1>
 
     <div id="anon-ui">
         <button id="login-btn">Sign in with GitHub</button>
+        <p><a id="manual-link" href="#" target="_self">Sign in with GitHub (link)</a></p>
     </div>
 
-    <div id="user-ui" style="display:none;">
+    <div id="user-ui">
         <p id="user-info"></p>
         <button id="logout-btn">Sign out</button>
     </div>
 
     <script type="module">
-        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
-
-        // ====== CONFIG - replace with your values (or inject at build time) ======
         const SUPABASE_URL = 'https://qfyckizrmqicdmrzbgig.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmeWNraXpybXFpY2RtcnpiZ2lnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwMjg2OTMsImV4cCI6MjA4MDYwNDY5M30.DlqFtid6PHUB8cgBPWOtmr6fxmLX0YEO3qvJvzX8bFc';
-        // ======================================================================
 
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.35.0/+esm';
         const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         const loginBtn = document.getElementById('login-btn');
@@ -33,60 +49,62 @@
         const anonUi = document.getElementById('anon-ui');
         const userUi = document.getElementById('user-ui');
         const userInfo = document.getElementById('user-info');
+        const manualLink = document.getElementById('manual-link');
 
-        // Start the OAuth flow (redirects user to GitHub)
-        loginBtn.addEventListener('click', async () => {
-            const { error } = await supabase.auth.signInWithOAuth({
-                provider: 'github',
-                options: {
-                    // Optional: override the redirect (defaults to your site's origin)
-                    redirectTo: window.location.origin + window.location.pathname
+        function authorizeUrl() {
+            const redirect = window.location.origin + window.location.pathname;
+            return SUPABASE_URL.replace(/\/$/, '') + '/auth/v1/authorize?provider=github&redirect_to=' + encodeURIComponent(redirect);
+        }
+
+        manualLink.href = authorizeUrl();
+
+        loginBtn.addEventListener('click', async (ev) => {
+            ev.preventDefault();
+            try {
+                const res = await supabase.auth.signInWithOAuth({
+                    provider: 'github',
+                    options: { redirectTo: window.location.origin + window.location.pathname }
+                });
+                if (res?.error) {
+                    window.location.href = authorizeUrl();
+                } else {
+                    window.location.href = authorizeUrl();
                 }
-            });
-            if (error) console.error('Error starting OAuth:', error.message);
+            } catch {
+                window.location.href = authorizeUrl();
+            }
         });
 
-        // Sign out
         logoutBtn.addEventListener('click', async () => {
-            const { error } = await supabase.auth.signOut();
-            if (error) console.error('Sign out error:', error);
+            await supabase.auth.signOut();
             showAnonUI();
         });
 
-        // When page loads, handle redirect callback and/or restore session
-        (async function handleAuth() {
-            // If the URL contains OAuth params, finish the flow and store session
-            // supabase.auth.getSessionFromUrl() parses the URL for the provider tokens and stores the session
-            if (location.search.includes('access_token') || location.search.includes('code') || location.hash.includes('access_token')) {
-                try {
-                    // storeSession=false if you want to handle session manually, true to auto-store in localStorage
-                    const { data, error } = await supabase.auth.getSessionFromUrl({ storeSession: true });
-                    if (error) {
-                        console.error('Error parsing session from URL:', error);
-                    } else {
-                        // When using getSessionFromUrl, the URL query/hash will be cleaned automatically in modern versions.
-                        console.log('OAuth result:', data);
-                    }
-                } catch (e) {
-                    console.error(e);
-                }
-            }
+        function parseHashTokens() {
+            const hash = window.location.hash.replace(/^#/, '');
+            if (!hash) return null;
+            const params = new URLSearchParams(hash);
+            const access_token = params.get('access_token');
+            const refresh_token = params.get('refresh_token');
+            if (!access_token) return null;
+            return { access_token, refresh_token };
+        }
 
-            // Get current session and user (if any)
-            const { data: { session } } = await supabase.auth.getSession();
-            if (session?.user) {
-                showUserUI(session.user);
-            } else {
-                showAnonUI();
-            }
-
-            // Optionally, subscribe to auth changes
-            supabase.auth.onAuthStateChange((event, session) => {
-                console.log('Auth state change', event, session);
-                if (session?.user) showUserUI(session.user);
-                else showAnonUI();
+        async function finishFromHashIfPresent() {
+            const tokens = parseHashTokens();
+            if (!tokens) return false;
+            await supabase.auth.setSession({
+                access_token: tokens.access_token,
+                refresh_token: tokens.refresh_token
             });
-        })();
+            try { history.replaceState({}, document.title, window.location.pathname); } catch (e) { }
+            return true;
+        }
+
+        function hasCodeInQuery() {
+            const q = new URLSearchParams(window.location.search);
+            return q.has('code');
+        }
 
         function showUserUI(user) {
             anonUi.style.display = 'none';
@@ -99,6 +117,27 @@
             userUi.style.display = 'none';
             userInfo.textContent = '';
         }
+
+        (async function init() {
+            if (hasCodeInQuery()) {
+                showAnonUI();
+                return;
+            }
+            const finished = await finishFromHashIfPresent();
+            if (!finished) {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session?.user) showUserUI(session.user);
+                else showAnonUI();
+            } else {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session?.user) showUserUI(session.user);
+                else showAnonUI();
+            }
+            supabase.auth.onAuthStateChange((event, session) => {
+                if (session?.user) showUserUI(session.user);
+                else showAnonUI();
+            });
+        })();
     </script>
 </body>
 
