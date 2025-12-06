@@ -1,0 +1,105 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>Supabase GitHub OAuth (static)</title>
+</head>
+
+<body>
+    <h1>Sign in with GitHub (Supabase)</h1>
+
+    <div id="anon-ui">
+        <button id="login-btn">Sign in with GitHub</button>
+    </div>
+
+    <div id="user-ui" style="display:none;">
+        <p id="user-info"></p>
+        <button id="logout-btn">Sign out</button>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
+        // ====== CONFIG - replace with your values (or inject at build time) ======
+        const SUPABASE_URL = 'https://qfyckizrmqicdmrzbgig.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmeWNraXpybXFpY2RtcnpiZ2lnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwMjg2OTMsImV4cCI6MjA4MDYwNDY5M30.DlqFtid6PHUB8cgBPWOtmr6fxmLX0YEO3qvJvzX8bFc';
+        // ======================================================================
+
+        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        const loginBtn = document.getElementById('login-btn');
+        const logoutBtn = document.getElementById('logout-btn');
+        const anonUi = document.getElementById('anon-ui');
+        const userUi = document.getElementById('user-ui');
+        const userInfo = document.getElementById('user-info');
+
+        // Start the OAuth flow (redirects user to GitHub)
+        loginBtn.addEventListener('click', async () => {
+            const { error } = await supabase.auth.signInWithOAuth({
+                provider: 'github',
+                options: {
+                    // Optional: override the redirect (defaults to your site's origin)
+                    redirectTo: window.location.origin + window.location.pathname
+                }
+            });
+            if (error) console.error('Error starting OAuth:', error.message);
+        });
+
+        // Sign out
+        logoutBtn.addEventListener('click', async () => {
+            const { error } = await supabase.auth.signOut();
+            if (error) console.error('Sign out error:', error);
+            showAnonUI();
+        });
+
+        // When page loads, handle redirect callback and/or restore session
+        (async function handleAuth() {
+            // If the URL contains OAuth params, finish the flow and store session
+            // supabase.auth.getSessionFromUrl() parses the URL for the provider tokens and stores the session
+            if (location.search.includes('access_token') || location.search.includes('code') || location.hash.includes('access_token')) {
+                try {
+                    // storeSession=false if you want to handle session manually, true to auto-store in localStorage
+                    const { data, error } = await supabase.auth.getSessionFromUrl({ storeSession: true });
+                    if (error) {
+                        console.error('Error parsing session from URL:', error);
+                    } else {
+                        // When using getSessionFromUrl, the URL query/hash will be cleaned automatically in modern versions.
+                        console.log('OAuth result:', data);
+                    }
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+
+            // Get current session and user (if any)
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.user) {
+                showUserUI(session.user);
+            } else {
+                showAnonUI();
+            }
+
+            // Optionally, subscribe to auth changes
+            supabase.auth.onAuthStateChange((event, session) => {
+                console.log('Auth state change', event, session);
+                if (session?.user) showUserUI(session.user);
+                else showAnonUI();
+            });
+        })();
+
+        function showUserUI(user) {
+            anonUi.style.display = 'none';
+            userUi.style.display = 'block';
+            userInfo.textContent = `Signed in as ${user.email || user.user_metadata?.full_name || user.id}`;
+        }
+
+        function showAnonUI() {
+            anonUi.style.display = 'block';
+            userUi.style.display = 'none';
+            userInfo.textContent = '';
+        }
+    </script>
+</body>
+
+</html>
