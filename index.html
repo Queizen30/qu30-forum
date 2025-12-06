@@ -52,7 +52,8 @@
         const manualLink = document.getElementById('manual-link');
 
         function authorizeUrl() {
-            const redirect = window.location.origin + window.location.pathname;
+            const domain = window.location.hostname === 'localhost' ? 'http://localhost:5173' : 'https://qu30-forum.com';
+            const redirect = domain + window.location.pathname;
             return SUPABASE_URL.replace(/\/$/, '') + '/auth/v1/authorize?provider=github&redirect_to=' + encodeURIComponent(redirect);
         }
 
