@@ -58,21 +58,10 @@
 
         manualLink.href = authorizeUrl();
 
-        loginBtn.addEventListener('click', async (ev) => {
+        // Reliable direct redirect on click (avoids popup/sdk suppression)
+        loginBtn.addEventListener('click', (ev) => {
             ev.preventDefault();
-            try {
-                const res = await supabase.auth.signInWithOAuth({
-                    provider: 'github',
-                    options: { redirectTo: window.location.origin + window.location.pathname }
-                });
-                if (res?.error) {
-                    window.location.href = authorizeUrl();
-                } else {
-                    window.location.href = authorizeUrl();
-                }
-            } catch {
-                window.location.href = authorizeUrl();
-            }
+            window.location.href = authorizeUrl();
         });
 
         logoutBtn.addEventListener('click', async () => {
