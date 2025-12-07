@@ -93,7 +93,7 @@
         function showUserUI(user) {
             anonUi.style.display = 'none';
             userUi.style.display = 'block';
-            sign.innerHTML = "Welcome, ${user.user_metadata?.full_name}!"
+            sign.innerHTML = "Welcome, " + user.user_metadata?.full_name + "!"
             userInfo.textContent = `Signed in as ${user.email || user.user_metadata?.full_name || user.id}`;
         }
 
