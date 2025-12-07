@@ -59,7 +59,9 @@
 
         manualLink.href = authorizeUrl();
 
-        loginBtn.onclick = authorizeUrl();
+        loginBtn.onclick = () => {
+            window.location.href = authorizeUrl();
+        };
 
         logoutBtn.addEventListener('click', async () => {
             await supabase.auth.signOut();
