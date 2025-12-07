@@ -1,0 +1,207 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Simple Forum Demo</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+    header { display:flex; justify-content:space-between; align-items:center; gap:1rem; }
+    #posts { margin-top:1.5rem; }
+    .post { border:1px solid #ddd; padding:0.75rem; margin-bottom:0.75rem; border-radius:6px; }
+    .meta { color:#555; font-size:0.9rem; margin-bottom:0.5rem; }
+    textarea, input { width:100%; box-sizing:border-box; padding:0.5rem; }
+    button { padding:0.5rem 0.75rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Forum</h1>
+    <div id="auth-area">
+      <button id="login-btn">Sign in with GitHub</button>
+      <button id="logout-btn" style="display:none">Sign out</button>
+    </div>
+  </header>
+
+  <section id="composer" style="display:none; margin-top:1rem;">
+    <div>
+      <input id="title" placeholder="Title" />
+    </div>
+    <div style="margin-top:0.5rem;">
+      <textarea id="body" rows="4" placeholder="Write your post..."></textarea>
+    </div>
+    <div style="margin-top:0.5rem;">
+      <button id="post-btn">Post</button>
+    </div>
+  </section>
+
+  <section id="posts">
+    <p id="loading">Loading posts...</p>
+  </section>
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
+    // Replace these:
+    const SUPABASE_URL = 'https://YOUR_SUPABASE_URL';
+    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const loginBtn = document.getElementById('login-btn');
+    const logoutBtn = document.getElementById('logout-btn');
+    const authArea = document.getElementById('auth-area');
+    const composer = document.getElementById('composer');
+    const postBtn = document.getElementById('post-btn');
+    const postsEl = document.getElementById('posts');
+    const loading = document.getElementById('loading');
+
+    // Helpers
+    function el(tag, text) {
+      const e = document.createElement(tag);
+      if (text) e.textContent = text;
+      return e;
+    }
+
+    async function getUser() {
+      const { data } = await supabase.auth.getUser();
+      return data?.user ?? null;
+    }
+
+    // Render posts list
+    async function loadPosts() {
+      loading.style.display = '';
+      // Simple select of latest posts ordered by created_at desc
+      const { data, error } = await supabase
+        .from('posts')
+        .select('id, title, body, author_id, created_at')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      loading.style.display = 'none';
+      postsEl.innerHTML = '';
+
+      if (error) {
+        postsEl.appendChild(el('p', 'Error loading posts: ' + error.message));
+        return;
+      }
+      if (!data || data.length === 0) {
+        postsEl.appendChild(el('p', 'No posts yet.'));
+        return;
+      }
+
+      // We'll fetch author usernames for posts if available:
+      // If you have a profiles table (id -> username), fetch in batch to avoid N+1.
+      const authorIds = Array.from(new Set(data.map(p => p.author_id).filter(Boolean)));
+      let usernameById = {};
+      if (authorIds.length) {
+        // If you don't have a profiles table, try getting name from auth metadata by calling getUser for each
+        // But better: create a `profiles` table and replace this with a single query: .from('profiles').select('id, username').in('id', authorIds)
+        // Attempt to read profiles table:
+        const { data: profiles, error: pErr } = await supabase
+          .from('profiles')
+          .select('id, username')
+          .in('id', authorIds);
+
+        if (!pErr && profiles) {
+          profiles.forEach(row => { usernameById[row.id] = row.username || row.id; });
+        }
+      }
+
+      for (const post of data) {
+        const div = document.createElement('div');
+        div.className = 'post';
+
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+
+        let authorLabel = post.author_id ? post.author_id : 'anonymous';
+        if (usernameById[post.author_id]) authorLabel = usernameById[post.author_id];
+
+        // If no profiles table, try to show limited info using auth admin? Can't from client. So we fallback to author_id or 'unknown'.
+        const created = new Date(post.created_at).toLocaleString();
+        meta.textContent = `${authorLabel} • ${created}`;
+
+        const title = document.createElement('div');
+        title.style.fontWeight = '600';
+        title.textContent = post.title || '(no title)';
+
+        const body = document.createElement('div');
+        body.textContent = post.body;
+
+        div.appendChild(meta);
+        div.appendChild(title);
+        div.appendChild(body);
+
+        postsEl.appendChild(div);
+      }
+    }
+
+    // Sign in with GitHub (redirect)
+    loginBtn.addEventListener('click', async () => {
+      await supabase.auth.signInWithOAuth({ provider: 'github' });
+      // This call will redirect to GitHub; after auth, the user is redirected back.
+    });
+
+    logoutBtn.addEventListener('click', async () => {
+      await supabase.auth.signOut();
+      updateAuthUI();
+    });
+
+    // Create a post
+    postBtn.addEventListener('click', async () => {
+      const titleEl = document.getElementById('title');
+      const bodyEl = document.getElementById('body');
+      const title = titleEl.value.trim();
+      const body = bodyEl.value.trim();
+      if (!body) return alert('Write something first.');
+
+      const user = await getUser();
+      if (!user) return alert('You must be signed in to post.');
+
+      const { error } = await supabase
+        .from('posts')
+        .insert([{
+          author_id: user.id,
+          title,
+          body
+        }]);
+
+      if (error) {
+        alert('Error creating post: ' + error.message);
+        return;
+      }
+
+      // Clear and reload posts
+      titleEl.value = '';
+      bodyEl.value = '';
+      await loadPosts();
+    });
+
+    // Listen to auth changes so UI updates after OAuth redirect
+    supabase.auth.onAuthStateChange((event, session) => {
+      updateAuthUI();
+    });
+
+    async function updateAuthUI() {
+      const user = await getUser();
+      if (user) {
+        loginBtn.style.display = 'none';
+        logoutBtn.style.display = '';
+        composer.style.display = '';
+        // If you want to show username somewhere:
+        // You can read user.user_metadata.name or user.email
+      } else {
+        loginBtn.style.display = '';
+        logoutBtn.style.display = 'none';
+        composer.style.display = 'none';
+      }
+    }
+
+    // Initial load
+    (async () => {
+      await updateAuthUI();
+      await loadPosts();
+    })();
+  </script>
+</body>
+</html>
