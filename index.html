@@ -25,7 +25,7 @@
 </head>
 
 <body>
-    <h1>Sign up / Sign in</h1>
+    <h1 id="signH1">Sign up / Sign in</h1>
 
     <div id="anon-ui">
         <a id="manual-link" href="#" target="_self"><button id="login-btn">Sign in with GitHub</button></a>
@@ -50,6 +50,7 @@
         const userUi = document.getElementById('user-ui');
         const userInfo = document.getElementById('user-info');
         const manualLink = document.getElementById('manual-link');
+        const sign = document.getElementById("signH1");
 
         function authorizeUrl() {
             const redirect = 'https://forum.qu30.qzz.io' + window.location.pathname;
@@ -57,10 +58,6 @@
         }
 
         manualLink.href = authorizeUrl();
-
-        loginBtn.onclick = () => {
-            window.location.href = authorizeUrl();
-        };
 
         logoutBtn.addEventListener('click', async () => {
             await supabase.auth.signOut();
@@ -96,6 +93,7 @@
         function showUserUI(user) {
             anonUi.style.display = 'none';
             userUi.style.display = 'block';
+            sign.innerHTML = "Welcome, ${user.user_metadata?.full_name}!"
             userInfo.textContent = `Signed in as ${user.email || user.user_metadata?.full_name || user.id}`;
         }
 
@@ -103,6 +101,7 @@
             anonUi.style.display = 'block';
             userUi.style.display = 'none';
             userInfo.textContent = '';
+            sign.innerHTML = "Sign up / Sign in"
         }
 
         (async function init() {
