@@ -59,11 +59,9 @@
 
         manualLink.href = authorizeUrl();
 
-        // Reliable direct redirect on click (avoids popup/sdk suppression)
-        loginBtn.addEventListener('click', (ev) => {
-            ev.preventDefault();
+        loginBtn.onclick = () => {
             window.location.href = authorizeUrl();
-        });
+        };
 
         logoutBtn.addEventListener('click', async () => {
             await supabase.auth.signOut();
