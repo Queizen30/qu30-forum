@@ -39,9 +39,8 @@ header {
 	margin-bottom: 0.5rem;
 }
 
-textarea,
-input {
-	width: auto;
+textarea, input {
+	width: 100%;
 	box-sizing: border-box;
 	padding: 0.5rem;
 }
