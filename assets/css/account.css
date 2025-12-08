@@ -1,0 +1,14 @@
+* {
+  display: none;
+}
+
+signinDiv {
+  justify-content: center;
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+}
+
+signinMsg {
+  display: block;
+}
