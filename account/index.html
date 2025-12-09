@@ -21,8 +21,8 @@
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     
 
-    function checkLogin() {
-        let user = getUser();
+     async function checkLogin() {
+        let user = await superbase.auth.getUser();
         document.getElementById("signinMsg").innerHTML = user;
     }
 
