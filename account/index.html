@@ -22,7 +22,7 @@
     
 
      async function checkLogin() {
-        let user = await superbase.auth.getUser();
+        let user = await supabase.auth.getSession();
         if (user) {
             document.getElementById("signinMsg").innerHTML = "Logged in";
         }
