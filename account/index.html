@@ -13,6 +13,14 @@
         <h1>Sign in/up</h1>
         <p class="signinMsg">Please <a href="https://qfyckizrmqicdmrzbgig.supabase.co/auth/v1/authorize?provider=github">sign in/up</a>.</p>
     </div>
+<script>
+    checkLogin()
+
+    function checkLogin() {
+        let user = checkUser();
+        document.getElementById("signinMsg").innerHTML = user;
+    }
+</script>
 </body>
 
 </html>
